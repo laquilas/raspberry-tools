@@ -2,7 +2,7 @@
 
 # GPS U-blox AG-7 - Logger Principal
 
-CONFIG_FILE="/home/laquilas/tools/config/app.conf"
+CONFIG_FILE="/home/laquilas/tools/app.conf"
 
 # Verificar configuração
 if [ ! -f "$CONFIG_FILE" ]; then

@@ -13,12 +13,16 @@ Sistema de logging GPS para dispositivos u-blox AG-7 em Raspberry Pi.
 - `gps_logger.sh` - Script principal de logging em SQLite
 - `gps_logger.service` - Service do systemd
 - `03_monitor.sh` - Monitor em tempo real do GPS
+- `update.sh` - Atualiza e reinicia serviço GPS
 
 ## Uso Rápido
 
 ```bash
 # Setup inicial completo
 sudo ./setup.sh
+
+# Atualizar após mudanças no código
+sudo ./update.sh
 
 # Monitor em tempo real
 ./03_monitor.sh

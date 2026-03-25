@@ -12,6 +12,7 @@ raspberry-tools/
 ├── wifi/                   # Configurações Wi-Fi
 ├── app.conf               # Configuração principal
 ├── sync.bat               # Sincronização Windows→Pi
+├── update_gps.bat         # Update completo GPS (sync + refresh)
 ├── fix_lineendings.bat    # Fix CRLF→LF (Windows)
 └── fix_lineendings.sh     # Fix CRLF→LF (Linux)
 ```
@@ -32,6 +33,18 @@ fix_lineendings.bat
 **No Raspberry Pi:**
 ```bash
 ./fix_lineendings.sh
+```
+
+### 3. Atualizar GPS Logger
+**Update completo (Windows → Pi):**
+```cmd
+update_gps.bat
+```
+
+**Update apenas no Pi:**
+```bash
+cd gps/u_box_ag_7
+sudo ./update.sh
 ```
 
 ## 📦 Módulos Disponíveis
