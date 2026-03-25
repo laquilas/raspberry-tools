@@ -1,0 +1,37 @@
+[Unit]
+Description=GPS U-blox AG-7 Logger Service
+Documentation=file:///home/laquilas/tools/gps/u_box_ag_7/README.md
+After=network.target gpsd.service
+Requires=gpsd.service
+Wants=gpsd.service
+
+[Service]
+Type=simple
+User=laquilas
+Group=laquilas
+WorkingDirectory=/home/laquilas/tools/gps/u_box_ag_7
+ExecStart=/home/laquilas/tools/gps/u_box_ag_7/gps_logger.sh
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Limits
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Timeouts
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gps-logger
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
