@@ -34,6 +34,8 @@ O módulo utiliza o arquivo `../../app.conf` para configurações. Principais va
 - `GPS_ENABLED` - Habilita/desabilita GPS
 - `GPS_DEVICE` - Dispositivo GPS (ex: /dev/ttyACM0)
 - `GPS_INTERVAL` - Intervalo de leitura em segundos
+- `GPS_MIN_FIX` - Fix mínimo para salvar (2=2D, 3=3D)
+- `GPS_REQUIRE_3D` - Exigir fix 3D para salvar (sobrepõe GPS_MIN_FIX)
 - `DATA_DIR` - Diretório dos dados SQLite
 
 ## Estrutura dos Dados
@@ -70,11 +72,29 @@ Tabela: `gps`
 
 ### Consulta Exemplo
 ```sql
+-- Últimos 10 pontos com fix 3D
 SELECT timestamp, lat, lon, alt_msl, speed, track, eph 
 FROM gps 
 WHERE fix_type >= 3 
 ORDER BY timestamp DESC 
 LIMIT 10;
+
+-- Estatísticas de velocidade e altitude
+SELECT 
+    COUNT(*) as total_pontos,
+    AVG(speed * 3.6) as velocidade_media_kmh,
+    MAX(speed * 3.6) as velocidade_max_kmh,
+    AVG(alt_msl) as altitude_media_m,
+    MAX(alt_msl) as altitude_max_m,
+    AVG(eph) as erro_medio_m
+FROM gps 
+WHERE fix_type >= 3;
+
+-- Pontos com movimento (velocidade > 5 km/h)
+SELECT timestamp, lat, lon, speed * 3.6 as speed_kmh, track
+FROM gps 
+WHERE speed > 1.39 AND fix_type >= 3
+ORDER BY timestamp;
 ```
 
 ## Troubleshooting

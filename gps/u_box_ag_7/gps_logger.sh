@@ -97,8 +97,14 @@ while true; do
     # Tempo GPS
     GPS_TIME=$(echo "$DATA" | jq -r '.time // empty')   # GPS timestamp
 
+    # Verificar critérios de gravação
+    MIN_FIX_REQUIRED="$GPS_MIN_FIX"
+    if [ "$GPS_REQUIRE_3D" = true ]; then
+        MIN_FIX_REQUIRED=3
+    fi
+
     # Verificar se tem fix válido
-    if [ -n "$LAT" ] && [ -n "$LON" ] && [ "$MODE" -ge "$GPS_MIN_FIX" ]; then
+    if [ -n "$LAT" ] && [ -n "$LON" ] && [ "$MODE" -ge "$MIN_FIX_REQUIRED" ]; then
 
         # Salvar no banco com dados expandidos
         sqlite3 "$FILE" "
