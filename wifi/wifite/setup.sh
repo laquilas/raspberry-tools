@@ -2,8 +2,6 @@
 
 # Wifite - Setup Automático Completo
 
-set -e
-
 echo "🔥==============================🔥"
 echo "🚀    WIFITE - SETUP COMPLETO   🚀"
 echo "🔥==============================🔥"
@@ -36,10 +34,20 @@ fi
 echo "🎯 Iniciando setup do Wifite..."
 echo ""
 
-# Etapa 1: Instalação
+# Variáveis para controle de status
+INSTALL_SUCCESS=false
+CONFIG_SUCCESS=false
+
+# Etapa 1: Instalação (permitir falhas parciais)
 echo "🔸 ETAPA 1/3: Instalação de dependências"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-./01_install.sh
+if ./01_install.sh; then
+    INSTALL_SUCCESS=true
+    echo "✅ Instalação concluída com sucesso"
+else
+    echo "⚠️ Instalação teve problemas, mas continuando..."
+    INSTALL_SUCCESS=false
+fi
 echo ""
 
 # Aguardar um pouco entre etapas
@@ -48,7 +56,13 @@ sleep 2
 # Etapa 2: Configuração  
 echo "🔸 ETAPA 2/3: Configuração do sistema"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-./02_configure.sh
+if ./02_configure.sh; then
+    CONFIG_SUCCESS=true
+    echo "✅ Configuração concluída com sucesso"
+else
+    echo "⚠️ Configuração teve problemas, mas continuando..."
+    CONFIG_SUCCESS=false
+fi
 echo ""
 
 # Aguardar um pouco antes do teste
@@ -59,35 +73,86 @@ echo "🔸 ETAPA 3/3: Verificação final"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 echo "🔍 Testando instalação do Wifite..."
+WIFITE_OK=false
 if command -v wifite >/dev/null 2>&1; then
-    echo "✅ Wifite encontrado: $(wifite --version 2>&1 | head -1)"
+    WIFITE_VERSION=$(wifite --version 2>&1 | head -1 | grep -o 'v[0-9]\+\.[0-9]\+' || echo "versão desconhecida")
+    echo "✅ Wifite encontrado: $WIFITE_VERSION"
+    WIFITE_OK=true
 else
-    echo "⚠️ Wifite não encontrado no PATH, mas pode ter sido instalado"
+    echo "❌ Wifite não encontrado no PATH"
+    if [ -f "/opt/wifite2/wifite.py" ]; then
+        echo "💡 Wifite parece estar em /opt/wifite2/ mas link não foi criado"
+        echo "   Tente: sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    fi
 fi
 
 echo ""
 echo "🔍 Verificando interfaces WiFi..."
 WIFI_COUNT=$(ls /sys/class/net/ 2>/dev/null | grep -E "^(wlan|wlp)" | wc -l)
 if [ "$WIFI_COUNT" -gt 0 ]; then
-    echo "✅ $WIFI_COUNT interface(s) WiFi detectada(s)"
+    echo "✅ $WIFI_COUNT interface(s) WiFi detectada(s):"
     ls /sys/class/net/ | grep -E "^(wlan|wlp)" | sed 's/^/   - /'
+    WIFI_OK=true
 else
-    echo "⚠️ Nenhuma interface WiFi detectada"
-    echo "   Verifique se o adaptador USB WiFi está conectado"
+    echo "❌ Nenhuma interface WiFi detectada"
+    echo "   💡 Conecte um adaptador USB WiFi compatível"
+    echo "   💡 Adaptadores recomendados: com chipsets Ralink/Atheros"
+    WIFI_OK=false
 fi
 
 echo ""
-echo "🔍 Verificando dependências críticas..."
-DEPS=("aircrack-ng" "reaver" "tshark" "macchanger")
-ALL_OK=true
-for dep in "${DEPS[@]}"; do
-    if command -v "$dep" >/dev/null 2>&1; then
-        echo "✅ $dep"
+echo "🔍 Verificando dependências essenciais..."
+ESSENTIAL_TOOLS=("git" "python3" "iw" "iwconfig")
+MISSING_ESSENTIAL=0
+for tool in "${ESSENTIAL_TOOLS[@]}"; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        echo "✅ $tool"
     else
-        echo "❌ $dep"
-        ALL_OK=false
+        echo "❌ $tool (ESSENCIAL)"
+        ((MISSING_ESSENTIAL++))
     fi
 done
+
+echo ""
+echo "🔍 Verificando ferramentas opcionais..."
+OPTIONAL_TOOLS=("aircrack-ng" "reaver" "hashcat" "macchanger" "tshark")
+MISSING_OPTIONAL=0
+for tool in "${OPTIONAL_TOOLS[@]}"; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        echo "✅ $tool"
+    else
+        echo "⚠️ $tool (opcional)"
+        ((MISSING_OPTIONAL++))
+    fi
+done
+
+echo ""
+echo "📊 RESUMO DO SETUP:"
+echo "═══════════════════════════════════════════════════════════════"
+
+# Status geral
+if [ "$MISSING_ESSENTIAL" -eq 0 ] && [ "$WIFITE_OK" = true ]; then
+    SETUP_STATUS="✅ SUCESSO"
+    SETUP_COLOR="🟢"
+elif [ "$MISSING_ESSENTIAL" -eq 0 ]; then
+    SETUP_STATUS="⚠️ PARCIAL"  
+    SETUP_COLOR="🟡"
+else
+    SETUP_STATUS="❌ FALHA"
+    SETUP_COLOR="🔴"
+fi
+
+echo "$SETUP_COLOR Setup Status: $SETUP_STATUS"
+echo ""
+
+# Detalhes do que funcionou
+echo "📋 Detalhes:"
+[ "$INSTALL_SUCCESS" = true ] && echo "✅ Instalação de dependências" || echo "⚠️ Instalação de dependências"
+[ "$CONFIG_SUCCESS" = true ] && echo "✅ Configuração do sistema" || echo "⚠️ Configuração do sistema"  
+[ "$WIFITE_OK" = true ] && echo "✅ Wifite instalado e funcionando" || echo "❌ Wifite com problemas"
+[ "$WIFI_OK" = true ] && echo "✅ Interfaces WiFi detectadas" || echo "❌ Nenhuma interface WiFi"
+[ "$MISSING_ESSENTIAL" -eq 0 ] && echo "✅ Todas as dependências essenciais" || echo "❌ $MISSING_ESSENTIAL dependência(s) essencial(is) faltando"
+[ "$MISSING_OPTIONAL" -eq 0 ] && echo "✅ Todas as ferramentas opcionais" || echo "⚠️ $MISSING_OPTIONAL ferramenta(s) opcional(is) faltando"
 
 echo ""
 echo "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"
@@ -95,10 +160,12 @@ echo "🎊               SETUP CONCLUÍDO!               🎊"
 echo "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"
 echo ""
 
-if [ "$ALL_OK" = true ]; then
-    echo "✅ Sistema configurado com sucesso!"
+if [ "$MISSING_ESSENTIAL" -eq 0 ] && [ "$WIFITE_OK" = true ] && [ "$WIFI_OK" = true ]; then
+    echo "🟢 Sistema totalmente funcional!"
+elif [ "$MISSING_ESSENTIAL" -eq 0 ] && [ "$WIFITE_OK" = true ]; then
+    echo "🟡 Sistema funcional (mas sem interfaces WiFi detectadas)"
 else
-    echo "⚠️ Sistema configurado, mas algumas dependências podem estar faltando"
+    echo "🔴 Sistema com problemas - verifique dependências faltantes"
 fi
 
 echo ""

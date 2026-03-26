@@ -177,6 +177,64 @@ wifite --version
 aircrack-ng --help
 ```
 
+### ❌ Dependências não encontradas nos repositórios
+**Problema comum**: `Package 'aircrack-ng' has no installation candidate`
+
+**Soluções por prioridade:**
+
+1. **Atualizar lista de repositórios:**
+```bash
+sudo apt update && sudo apt upgrade
+sudo apt install software-properties-common
+```
+
+2. **Instalar do Snap (Ubuntu/Debian):**
+```bash
+sudo snap install aircrack-ng
+export PATH=$PATH:/snap/bin
+```
+
+3. **Compilar do código fonte (último recurso):**
+```bash
+# aircrack-ng
+git clone https://github.com/aircrack-ng/aircrack-ng.git
+cd aircrack-ng
+sudo apt install build-essential autoconf automake libtool pkg-config libnl-3-dev libnl-genl-3-dev libssl-dev
+autoreconf -i
+./configure
+make && sudo make install
+```
+
+4. **Ferramentas alternativas:**
+```bash
+# Se aircrack-ng não funcionar, instalar alternativas
+sudo apt install wireless-tools rfkill
+```
+
+5. **Verificar distribuição:**
+```bash
+lsb_release -a        # Ver distribuição
+uname -a              # Ver arquitetura
+
+# Para Raspberry Pi OS específicamente:
+echo "deb http://deb.debian.org/debian bullseye main" | sudo tee -a /etc/apt/sources.list
+sudo apt update
+```
+
+### ⚠️ Setup com dependências faltantes
+**O Wifite pode funcionar mesmo sem todas as dependências!**
+
+```bash
+# Verificar o que funciona
+./03_monitor.sh       # Monitor sempre funciona
+
+# Testar Wifite com ferramentas limitadas
+sudo wifite --no-wps --no-pmkid    # Modo mais básico
+
+# Ver quais ataques estão disponíveis
+wifite --help        # Lista opções baseadas no que está instalado
+```
+
 ### Performance baixa
 ```bash
 # Usar GPU (se disponível)
