@@ -129,11 +129,16 @@ fi
 echo "🧪 Teste funcional:"
 echo "═══════════════════════════════════════════════════════════════"
 
+WIFITE_INSTALLED=false
+WIFITE_WORKING=false
+
 if command -v wifite >/dev/null 2>&1; then
-    echo "✅ Wifite encontrado"
+    WIFITE_INSTALLED=true
+    echo "✅ Wifite encontrado no PATH"
     
     # Verificar se consegue executar
     if timeout 5s wifite --help >/dev/null 2>&1; then
+        WIFITE_WORKING=true
         echo "✅ Wifite executa corretamente"
     else
         echo "⚠️ Wifite instalado mas com problemas na execução"
@@ -142,16 +147,117 @@ if command -v wifite >/dev/null 2>&1; then
     # Mostrar versão
     VERSION=$(wifite --version 2>&1 | head -1 || echo "versão desconhecida")
     echo "   Versão: $VERSION"
+elif [ -f "/opt/wifite2/wifite.py" ]; then
+    echo "⚠️ Wifite encontrado em /opt/wifite2/ mas não está no PATH"
+    echo "💡 Solução rápida: sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    
+    # Testar se funciona diretamente
+    if timeout 5s python3 /opt/wifite2/wifite.py --help >/dev/null 2>&1; then
+        echo "✅ Wifite funciona quando chamado diretamente"
+        WIFITE_WORKING=true
+    else
+        echo "❌ Wifite tem problemas mesmo quando chamado diretamente"
+    fi
 else
     echo "❌ Wifite não encontrado"
-    echo "💡 Caminho manual: python3 /opt/wifite2/wifite.py --help"
+    echo "💡 Instalar: sudo git clone https://github.com/derv82/wifite2.git /opt/wifite2"
 fi
 
 echo ""
-echo "🎯 Próximos Passos Recomendados:"
+echo "🎯 SOLUÇÕES ESPECÍFICAS para seu sistema:"
 echo "═══════════════════════════════════════════════════════════════"
 
 WIFI_COUNT=$(ls /sys/class/net/ 2>/dev/null | grep -E "^(wlan|wlp)" | wc -l)
+AIRCRACK_MISSING=false
+if ! command -v aircrack-ng >/dev/null 2>&1; then
+    AIRCRACK_MISSING=true
+fi
+
+# Priorizada baseada no status atual
+echo "📋 Ações recomendadas por prioridade:"
+echo ""
+
+if [ "$AIRCRACK_MISSING" = true ]; then
+    echo "🚨 CRÍTICO: Instalar aircrack-ng (ferramenta essencial)"
+    echo "   Método 1 (preferido):"
+    echo "     sudo apt update"
+    echo "     sudo apt install aircrack-ng"
+    echo ""
+    echo "   Método 2 (se método 1 falhar):"
+    echo "     sudo snap install aircrack-ng"
+    echo "     export PATH=\$PATH:/snap/bin"
+    echo "     echo 'export PATH=\$PATH:/snap/bin' >> ~/.bashrc"
+    echo ""
+    echo "   Método 3 (Ubuntu 22.04+):"
+    echo "     sudo apt install software-properties-common"
+    echo "     sudo add-apt-repository universe"
+    echo "     sudo apt update && sudo apt install aircrack-ng"
+    echo ""
+fi
+
+if [ "$WIFITE_INSTALLED" = false ]; then
+    echo "🔧 IMPORTANTE: Instalar Wifite2"
+    echo "   cd /tmp"
+    echo "   sudo git clone https://github.com/derv82/wifite2.git /opt/wifite2"
+    echo "   sudo chmod +x /opt/wifite2/wifite.py"
+    echo "   sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    echo ""
+elif [ "$WIFITE_WORKING" = false ]; then
+    echo "🔧 CORRIGIR: Link do Wifite"
+    echo "   sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    echo "   # Testar: wifite --version"
+    echo ""
+fi
+
+if [ "$WIFI_COUNT" -eq 0 ]; then
+    echo "📡 HARDWARE: Resolver interface WiFi"
+    echo "   • Conectar adaptador USB WiFi compatível"
+    echo "   • Verificar reconhecimento: lsusb | grep -i wifi"
+    echo "   • Reiniciar se necessário"
+    echo ""
+else
+    echo "✅ Hardware WiFi: OK ($WIFI_COUNT interface(s) detectada(s))"
+    echo ""
+fi
+
+echo "⚡ COMANDO RÁPIDO para seu caso:"
+echo "───────────────────────────────────────────────────────────────"
+
+if [ "$AIRCRACK_MISSING" = true ] && [ "$WIFITE_INSTALLED" = false ]; then
+    echo "# Instalar tudo de uma vez:"
+    echo "sudo apt update"
+    echo "sudo apt install aircrack-ng || sudo snap install aircrack-ng"
+    echo "sudo git clone https://github.com/derv82/wifite2.git /opt/wifite2 2>/dev/null || echo 'Wifite já existe'"
+    echo "sudo chmod +x /opt/wifite2/wifite.py"
+    echo "sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    echo ""
+    echo "# Testar instalação:"
+    echo "wifite --version"
+    echo "aircrack-ng --help | head -3"
+elif [ "$AIRCRACK_MISSING" = true ]; then
+    echo "# Só falta o aircrack-ng:"
+    echo "sudo apt install aircrack-ng || sudo snap install aircrack-ng"
+    echo ""
+elif [ "$WIFITE_INSTALLED" = false ] || [ "$WIFITE_WORKING" = false ]; then
+    echo "# Só corrigir o Wifite:"
+    echo "sudo ln -sf /opt/wifite2/wifite.py /usr/local/bin/wifite"
+    echo "wifite --version"
+    echo ""
+else
+    echo "# Sistema parece estar funcionando, teste:"
+    echo "wifite --no-wps --no-pmkid    # Scan seguro"
+    echo "./03_monitor.sh               # Monitor de interfaces"
+    echo ""
+fi
+
+echo "💡 DEPOIS DE CORRIGIR, execute:"
+echo "   ./diagnostic.sh              # Verificar novamente" 
+echo "   ./03_monitor.sh              # Monitor em tempo real"
+echo "   sudo wifite --no-wps --no-pmkid  # Scan de redes (seguro)"
+
+echo ""
+echo "🎯 Próximos Passos Sistemáticos:"
+echo "═══════════════════════════════════════════════════════════════"
 
 if [ "$WIFI_COUNT" -eq 0 ]; then
     echo "1️⃣ PRIORITÁRIO: Resolver hardware WiFi"

@@ -10,6 +10,12 @@ cd wifi/wifite/
 sudo ./setup.sh
 ```
 
+**👥 Para seu caso específico (aircrack-ng + Wifite faltando):**
+```bash
+./quick_fix.sh              # Correção automática inteligente
+./diagnostic.sh             # Verificar o que foi corrigido
+```
+
 ## 📋 Scripts Disponíveis
 
 ### 1. `01_install.sh` - Instalação de Dependências
@@ -33,6 +39,18 @@ sudo ./setup.sh
 ### 4. `setup.sh` - Setup Automático
 - Executa todos os scripts na sequência correta
 - Instalação completamente automatizada
+
+### 5. `quick_fix.sh` - **NOVO!** Correção Específica  
+- Analisa problemas específicos do seu sistema
+- Correção automática para aircrack-ng e Wifite
+- Múltiplos métodos de instalação (apt, snap, manual)
+- Ideal para resolver dependências faltantes
+
+### 6. `diagnostic.sh` - **NOVO!** Diagnóstico Completo
+- Análise detalhada do hardware e software
+- Detecta problemas específicos 
+- Sugestões personalizadas de correção
+- Verificação de compatibilidade
 
 ## 🛠️ Uso Básico
 
@@ -180,7 +198,13 @@ aircrack-ng --help
 ### ❌ Dependências não encontradas nos repositórios
 **Problema comum**: `Package 'aircrack-ng' has no installation candidate`
 
-**Soluções por prioridade:**
+**✅ SOLUÇÃO RÁPIDA AUTOMÁTICA:**
+```bash
+./quick_fix.sh               # Correção automática inteligente
+./diagnostic.sh              # Diagnóstico após correção
+```
+
+**Soluções manuais por prioridade:**
 
 1. **Atualizar lista de repositórios:**
 ```bash
@@ -192,9 +216,17 @@ sudo apt install software-properties-common
 ```bash
 sudo snap install aircrack-ng
 export PATH=$PATH:/snap/bin
+echo 'export PATH=$PATH:/snap/bin' >> ~/.bashrc
 ```
 
-3. **Compilar do código fonte (último recurso):**
+3. **Para Ubuntu 22.04+ (habilitar universe):**
+```bash
+sudo add-apt-repository universe
+sudo apt update
+sudo apt install aircrack-ng
+```
+
+4. **Compilar do código fonte (último recurso):**
 ```bash
 # aircrack-ng
 git clone https://github.com/aircrack-ng/aircrack-ng.git
@@ -205,13 +237,13 @@ autoreconf -i
 make && sudo make install
 ```
 
-4. **Ferramentas alternativas:**
+5. **Ferramentas alternativas:**
 ```bash
 # Se aircrack-ng não funcionar, instalar alternativas
 sudo apt install wireless-tools rfkill
 ```
 
-5. **Verificar distribuição:**
+6. **Verificar distribuição:**
 ```bash
 lsb_release -a        # Ver distribuição
 uname -a              # Ver arquitetura
