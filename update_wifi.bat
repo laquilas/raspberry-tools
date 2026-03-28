@@ -11,7 +11,7 @@ echo   Update WiFi Wifite - Raspberry Tools
 echo ========================================
 echo.
 
-echo [1/4] Sincronizando arquivos...
+echo [1/5] Sincronizando arquivos...
 scp -r "%LOCAL_DIR%\*" %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%
 
 if %errorlevel% neq 0 (
@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/4] Corrigindo line endings...
+echo [2/5] Corrigindo line endings...
 ssh %REMOTE_USER%@%REMOTE_HOST% "find %REMOTE_DIR% -name '*.conf' -o -name '*.sh' -type f -exec sed -i 's/\r$//' {} \; && find %REMOTE_DIR% -name '*.sh' -type f -exec chmod +x {} \;"
 
 if %errorlevel% neq 0 (
@@ -31,11 +31,14 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [3/4] Verificando estado atual do WiFi...
+echo [3/5] Verificando estado atual do WiFi...
 ssh %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR%/wifi/wifite && iwconfig 2>/dev/null | grep -E '^(wlan|wlp)' || echo 'Nenhuma interface WiFi ativa'"
 
+echo [4/5] Verificando estado atual do WiFi...
+ssh %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR%/wifi/hcx && iwconfig 2>/dev/null | grep -E '^(wlan|wlp)' || echo 'Nenhuma interface WiFi ativa'"
+
 echo.
-echo [4/4] Atualizando sistema WiFi Wifite...
+echo [5/5] Atualizando sistema WiFi Wifite...
 ssh %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR%/wifi/wifite && sudo ./setup.sh"
 
 if %errorlevel% neq 0 (
