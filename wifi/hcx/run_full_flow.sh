@@ -1,32 +1,30 @@
 #!/bin/bash
-set -e
+
+echo "[DEBUG] Starting run_full_flow.sh"
 
 # Uso / Ajuda
 usage(){
   cat <<EOF
-run_full_flow.sh - Orquestra o fluxo HCX (02 -> 03 -> 04 -> 05) usando tmux
+run_full_flow.sh - Orquestra o fluxo HCX (02 -> 03 -> 04 -> 05)
 
 Usage:
-  ./run_full_flow.sh            # inicia a sessão tmux e executa o fluxo
-  ./run_full_flow.sh --clean    # mata sessão tmux existente e reinicia
+  ./run_full_flow.sh            # executa o fluxo completo
+  ./run_full_flow.sh --clean    # limpa arquivos temporários e executa
   ./run_full_flow.sh -h|--help  # mostra esta ajuda
 
 O script:
-  - executa `02_config.sh` localmente para detectar a interface de monitor
-  - cria uma sessão tmux `hcx_flow` com janelas para scan/logs
-  - espera `networks.list` gerado por `03_scan.sh` e cria janelas `capture-*` e `extract-*`
-  - salva hashes em `hashes_all.hc22000` quando encontrados
+  - executa `02_config.sh` para detectar a interface de monitor
+  - executa `03_scan.sh` para escanear redes em wlan0
+  - para cada rede encontrada, executa `04_capture.sh` e `05_extrair_hash.sh`
+  - salva hashes em arquivo final quando encontrados
 
-Saídas relevantes (diretório `wifi/hcx`):
-  - config.out    : saída de `02_config.sh`
-  - scan.out      : saída de `03_scan.sh`
-  - capture_*.pcapng
-  - extract_*.out
-  - tmp_hashes_*.hc22000
-  - hashes_all.hc22000
-
-Para acessar a sessão tmux:
-  tmux -S /tmp/hcx_tmux/default attach -t hcx_flow
+Saídas relevantes (em /tmp/data/ANO/MES/DIA/):
+  - ANO_MES_DIA_config.out
+  - ANO_MES_DIA_scan.out
+  - ANO_MES_DIA_capture_*.pcapng
+  - ANO_MES_DIA_extract_*.out
+  - ANO_MES_DIA_tmp_hashes_*.hc22000
+  - ANO_MES_DIA_hashes_all.hc22000
 
 EOF
 }
@@ -36,116 +34,112 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   usage; exit 0
 fi
 
-# Orquestrador usando tmux: cada etapa roda em uma janela separada
+echo "[DEBUG] Args parsed"
+
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_DIR"
 
-## configura socket tmux dedicado para evitar usar /tmp/tmux-0
-TMUX_SOCKET_DIR="/tmp/hcx_tmux"
-mkdir -p "$TMUX_SOCKET_DIR" 2>/dev/null || true
-chmod 700 "$TMUX_SOCKET_DIR" 2>/dev/null || true
-TMUX_SOCKET="$TMUX_SOCKET_DIR/default"
-TMUX_CMD="tmux -S $TMUX_SOCKET"
+echo "[DEBUG] Changed to: $(pwd)"
 
-# opção --clean (mata sessão existente antes de iniciar)
+# opção --clean (limpa arquivos temporários)
 if [ "$1" = "--clean" ]; then
-  if $TMUX_CMD has-session -t hcx_flow 2>/dev/null; then
-    echo "[+] Matando sessão tmux hcx_flow existente..."
-    $TMUX_CMD kill-session -t hcx_flow
-  fi
+  echo "[+] Limpando arquivos temporários..."
+  rm -f networks.list scan_raw.txt *.done 2>/dev/null || true
 fi
 
-SESSION="hcx_flow"
+echo "[DEBUG] Checking dependencies"
 
-for cmd in tmux iw timeout hcxdumptool hcxpcapngtool; do
+for cmd in iw timeout hcxdumptool hcxpcapngtool; do
   if ! command -v $cmd >/dev/null 2>&1; then
     echo "[!] Aviso: $cmd não encontrado no PATH"
+  else
+    echo "[DEBUG] Found: $cmd"
   fi
 done
 
-# tenta iniciar servidor tmux
-TMUX_OK=1
-if command -v tmux >/dev/null 2>&1; then
-  $TMUX_CMD start-server 2>/dev/null || TMUX_OK=0
-else
-  TMUX_OK=0
+echo "[DEBUG] Dependencies checked, starting config"
+
+echo "[+] Executando 02_config.sh para obter monitor iface..."
+if [ ! -f "./02_config.sh" ]; then
+  echo "[!] Erro: 02_config.sh não encontrado"
+  exit 1
 fi
 
-if [ $TMUX_OK -eq 1 ]; then
-  if $TMUX_CMD has-session -t "$SESSION" 2>/dev/null; then
-    echo "[!] Sessão tmux '$SESSION' já existe. Por segurança, remova com: $TMUX_CMD kill-session -t $SESSION" >&2
-    exit 1
-  fi
-else
-  echo "[!] tmux não disponível ou servidor não pôde ser iniciado — usando modo sem tmux" >&2
-fi
-
-echo "[+] Executando 02_config.sh localmente para obter monitor iface..."
-MON_IFACE=$(./02_config.sh) || { echo "[!] Falha ao configurar monitor"; exit 1; }
+MON_IFACE=$(./02_config.sh) || { 
+  echo "[!] Falha ao configurar monitor"
+  exit 1
+}
 
 # prepara diretório de saída em /tmp/data/ANO/MES/DIA e prefixo ANO_MES_DIA_
+echo "[DEBUG] Setting up output directory"
 YEAR=$(date +%Y)
 MONTH=$(date +%m)
 DAY=$(date +%d)
 DATE_PREFIX="${YEAR}_${MONTH}_${DAY}"
 OUT_DIR="/tmp/data/${YEAR}/${MONTH}/${DAY}"
+echo "[DEBUG] OUT_DIR: $OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 CONFIG_OUT="$OUT_DIR/${DATE_PREFIX}_config.out"
 echo "[+] Monitor iface detectada: $MON_IFACE" | tee "$CONFIG_OUT"
 
-echo "[+] Criando sessão tmux '$SESSION' (detached) com janelas: scan, logs"
-
-# cria sessão e janela scan que executa 03_scan.sh
+echo "[DEBUG] Starting scan"
+echo "[+] Executando scan em wlan0..."
 SCAN_OUT="$OUT_DIR/${DATE_PREFIX}_scan.out"
-$TMUX_CMD new-session -d -s "$SESSION" -n scan "bash -lc 'export SESSION=$SESSION; ./03_scan.sh 2>&1 | tee "$SCAN_OUT"; echo "[scan done]"; bash'"
+./03_scan.sh 2>&1 | tee "$SCAN_OUT"
 
-# janela logs: tail do arquivo de hashes
-$TMUX_CMD new-window -t "$SESSION" -n logs "bash -lc 'while true; do if [ -f hashes_all.hc22000 ]; then tail -n +1 -f hashes_all.hc22000; else echo "[waiting for hashes_all.hc22000]"; sleep 5; fi; done'"
-
-echo "[+] Aguarde a conclusão do scan (esperando networks.list)..."
-WAIT_MAX=90; WAIT=0
-while [ ! -f networks.list ] && [ $WAIT -lt $WAIT_MAX ]; do sleep 1; WAIT=$((WAIT+1)); done
 if [ ! -f networks.list ]; then
-  echo "[!] networks.list não foi gerado em $WAIT_MAX segundos" >&2
-  echo "Sessão tmux criada — conecte-se com: $TMUX_CMD attach -t $SESSION" 
+  echo "[!] networks.list não foi gerado pelo scan"
   exit 1
 fi
 
-echo "[+] networks.list encontrado — criando janelas de captura/extração para cada rede"
+echo "[+] Processando redes encontradas..."
 while IFS='|' read -r mac ssid channel; do
   SAN_MAC=$(echo "$mac" | sed 's/://g')
   if [ -z "$channel" ]; then channel=6; fi
-  DURATION=30
+  DURATION=600  # 10 minutos
   OUT_CAPTURE="$OUT_DIR/${DATE_PREFIX}_capture_${SAN_MAC}.pcapng"
-  OUT_CAPTURE_DONE="${OUT_CAPTURE}.done"
   TMP_HASHES="$OUT_DIR/${DATE_PREFIX}_tmp_hashes_${SAN_MAC}.hc22000"
-  TMP_HASHES_DONE="${TMP_HASHES}.done"
+  EXTRACT_OUT="$OUT_DIR/${DATE_PREFIX}_extract_${SAN_MAC}.out"
 
-  echo "[+] Criando janela tmux capture-$SAN_MAC"
-  $TMUX_CMD new-window -t "$SESSION" -n "capture-$SAN_MAC" "bash -lc './04_capture.sh \"$mac\" \"$channel\" \"$MON_IFACE\" $DURATION > \"$OUT_CAPTURE\" 2>&1; echo done > \"$OUT_CAPTURE_DONE\"; bash'"
+  echo "[+] Capturando: SSID='$ssid' MAC=$mac CH=$channel (10 min)"
+  
+  # Status bar durante captura
+  (
+    ./04_capture.sh "$mac" "$channel" "$MON_IFACE" $DURATION > "$OUT_CAPTURE" 2>&1
+    echo "CAPTURE_DONE" > "/tmp/capture_${SAN_MAC}_status"
+  ) &
+  CAPTURE_PID=$!
+  
+  # Mostra progresso
+  echo -n "Progresso: ["
+  for i in $(seq 1 60); do
+    sleep 10  # a cada 10 segundos
+    if kill -0 $CAPTURE_PID 2>/dev/null; then
+      echo -n "#"
+    else
+      break
+    fi
+  done
+  echo "] Concluído"
+  
+  wait $CAPTURE_PID
+  rm -f "/tmp/capture_${SAN_MAC}_status" 2>/dev/null || true
 
-  # espera a captura terminar
-  WAIT_MAX_CAP=$((DURATION+20)); WAIT_CAP=0
-  while [ ! -f "$OUT_CAPTURE_DONE" ] && [ $WAIT_CAP -lt $WAIT_MAX_CAP ]; do sleep 1; WAIT_CAP=$((WAIT_CAP+1)); done
-  if [ ! -f "$OUT_CAPTURE_DONE" ]; then
-    echo "[!] Timeout na captura $mac — pulando"
+  if [ ! -f "$OUT_CAPTURE" ]; then
+    echo "[!] Arquivo de captura não encontrado: $OUT_CAPTURE"
     continue
   fi
 
-  echo "[+] Criando janela tmux extract-$SAN_MAC"
-  EXTRACT_OUT="$OUT_DIR/${DATE_PREFIX}_extract_${SAN_MAC}.out"
-  $TMUX_CMD new-window -t "$SESSION" -n "extract-$SAN_MAC" "bash -lc './05_extrair_hash.sh \"$OUT_CAPTURE\" \"$TMP_HASHES\" > \"$EXTRACT_OUT\" 2>&1; echo done > \"$TMP_HASHES_DONE\"; bash'"
-
-  WAIT_EX=20; WAIT_E=0
-  while [ ! -f "$TMP_HASHES_DONE" ] && [ $WAIT_E -lt $WAIT_EX ]; do sleep 1; WAIT_E=$((WAIT_E+1)); done
+  echo "[+] Extraindo hash de $mac"
+  ./05_extrair_hash.sh "$OUT_CAPTURE" "$TMP_HASHES" > "$EXTRACT_OUT" 2>&1 || true
 
   if [ -f "$TMP_HASHES" ] && [ -s "$TMP_HASHES" ]; then
     HASHES_ALL="$OUT_DIR/${DATE_PREFIX}_hashes_all.hc22000"
     echo "[+] Hash encontrado para $mac — salvando em $HASHES_ALL"
     cat "$TMP_HASHES" >> "$HASHES_ALL"
     echo "[+] Hash salvo. Finalizando fluxo."
-    echo "Sessão tmux: $TMUX_CMD attach -t $SESSION"
+    echo "[+] Arquivo de hashes: $HASHES_ALL"
     exit 0
   else
     echo "[+] Nenhum hash para $mac — prosseguindo"
@@ -153,5 +147,4 @@ while IFS='|' read -r mac ssid channel; do
 done < networks.list
 
 echo "[+] Varredura completa — nenhum hash encontrado"
-echo "Sessão tmux ainda está rodando: $TMUX_CMD attach -t $SESSION"
 exit 0
