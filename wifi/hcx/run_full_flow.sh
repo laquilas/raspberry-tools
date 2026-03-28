@@ -126,8 +126,11 @@ while IFS='|' read -r mac ssid channel; do
   wait $CAPTURE_PID
   rm -f "/tmp/capture_${SAN_MAC}_status" 2>/dev/null || true
 
-  if [ ! -f "$OUT_CAPTURE" ]; then
-    echo "[!] Arquivo de captura não encontrado: $OUT_CAPTURE"
+  wait $CAPTURE_PID
+  rm -f "/tmp/capture_${SAN_MAC}_status" 2>/dev/null || true
+
+  if [ ! -f "$OUT_CAPTURE" ] || [ ! -s "$OUT_CAPTURE" ]; then
+    echo "[!] Falha na captura de $mac ou arquivo vazio"
     continue
   fi
 
